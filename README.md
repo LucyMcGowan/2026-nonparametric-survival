@@ -169,7 +169,7 @@ control curve with its time axis stretched by $1/\hat\rho \approx 1.55$
 $\hat{c} = 50$ days (additive). The multiplicative transformation tracks
 the treatment arm more closely, suggesting a time-acceleration factor is
 the more adequate
-summary.](Readme_files/figure-commonmark/km-plot-1.png)
+summary.](README_files/figure-commonmark/km-plot-1.png)
 
 ## Shiny App
 

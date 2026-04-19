@@ -104,6 +104,7 @@ The point estimate is 0.645 with 95% CI **[0.529, 0.876]**.
 To assess whether a constant-effect summary is adequate, we overlay two transformations of the control arm's Kaplan--Meier curve: one shifted right by $\hat{c} = 50$ days (additive) and one with its time axis stretched by $1/\hat\rho \approx 1.55$ (multiplicative).
 
 ```{r}
+#| label: km-plot 
 #| fig-cap: >
 #|   Kaplan–Meier survival curves for the rhDNase trial. Solid lines show the
 #|   control (blue) and rhDNase (orange) arms. The dashed line is the control

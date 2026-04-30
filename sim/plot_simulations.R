@@ -43,9 +43,9 @@ p1 <- long |>
   theme(legend.position = "bottom")
 
 
-# Plot 2: Coverage (rho = 0.8, x = cens_rate, facet by n)
+# Plot 2: Coverage (rho = 1.25, x = cens_rate, facet by n)
 p2 <- long |>
-  filter(metric == "coverage", rho == 0.8) |>
+  filter(metric == "coverage", rho == 1.25) |>
   ggplot(aes(
     x = target_cens,
     y = value,
@@ -71,9 +71,9 @@ p2 <- long |>
   theme(legend.position = "bottom")
 
 
-# Plot 3: CI width (rho = 0.8, x = cens_rate, facet by n)
+# Plot 3: CI width (rho = 1.25, x = cens_rate, facet by n)
 p3 <- long |>
-  filter(metric == "width", rho == 0.8) |>
+  filter(metric == "width", rho == 1.25) |>
   ggplot(aes(
     x = target_cens,
     y = value,

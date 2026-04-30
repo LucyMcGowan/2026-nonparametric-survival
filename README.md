@@ -101,7 +101,7 @@ ci_multiplicative <- function(data, log_lower, log_upper, alpha = 0.05, ngrid = 
   grid_rho <- exp(seq(log_lower, log_upper, length.out = ngrid))
   pval <- vapply(grid_rho, function(rho) {
     d <- data
-    d$Y[d$Z == 0] <- d$Y[d$Z == 0] / rho
+    d$Y[d$Z == 0] <- d$Y[d$Z == 0] * rho
     survdiff(Surv(Y, event) ~ Z, data = d, rho = 0)$pvalue
   }, numeric(1))
 
@@ -115,17 +115,17 @@ ci_multiplicative <- function(data, log_lower, log_upper, alpha = 0.05, ngrid = 
 ci_multiplicative(dat, -3, 3)
 ```
 
-            est     lower    upper
-    1 0.6453258 0.5294058 0.876341
+           est    lower   upper
+    1 1.549605 1.141108 1.88891
 
-The point estimate is 0.645 with 95% CI **\[0.529, 0.876\]**.
+The point estimate is 1.55 with 95% CI **\[1.14, 1.89\]**.
 
 ### Kaplan–Meier Plot with Transformed Control Curves
 
 To assess whether a constant-effect summary is adequate, we overlay two
 transformations of the control arm’s Kaplan–Meier curve: one shifted
 right by $\hat{c} = 50$ days (additive) and one with its time axis
-stretched by $1/\hat\rho \approx 1.55$ (multiplicative).
+stretched by $\hat\rho= 1.55$ (multiplicative).
 
 ``` r
 library(ggsurvfit)
@@ -140,7 +140,7 @@ km_fit     <- survfit2(Surv(Y, event) ~ Z, data = dat)
 km_control <- survfit2(Surv(Y, event) ~ 1, data = subset(dat, Z == 0)) |>
   tidy_survfit()
 
-km_mult <- km_control |> transform(time = time / 0.645)
+km_mult <- km_control |> transform(time = time * 1.55)
 km_add  <- km_control |> transform(time = time + 50)
 
 km_fit |>
@@ -164,7 +164,7 @@ km_fit |>
 
 ![Kaplan–Meier survival curves for the rhDNase trial. Solid lines show
 the control (blue) and rhDNase (orange) arms. The dashed line is the
-control curve with its time axis stretched by $1/\hat\rho \approx 1.55$
+control curve with its time axis stretched by $\hat\rho = 1.55$
 (multiplicative); the dotted line is the control curve shifted right by
 $\hat{c} = 50$ days (additive). The multiplicative transformation tracks
 the treatment arm more closely, suggesting a time-acceleration factor is

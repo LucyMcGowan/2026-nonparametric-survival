@@ -5,7 +5,7 @@ scenarios <- expand.grid(
   dgp = c("weibull", "loglogistic"),
   n   = c(50, 200),
   cens_rate = c(0.2, 0.5, 0.8),
-  rho = c(1.0, 0.8)
+  rho = c(1.0, 1.25)
 )
 
 N_CORES <- max(1L, detectCores() - 1L)
@@ -18,7 +18,7 @@ ci_multiplicative <- function(data,
   grid_rho <- exp(seq(log_lower, log_upper, length.out = ngrid))
   pval <- vapply(grid_rho, function(rho) {
     d <- data
-    d$Y[d$Z == 0] <- d$Y[d$Z == 0] / rho
+    d$Y[d$Z == 0] <- d$Y[d$Z == 0] * rho
     survdiff(Surv(Y, event) ~ Z, data = d, rho = 0)$pvalue
   }, numeric(1))
   if (all(pval <= alpha))
@@ -101,7 +101,7 @@ gen_weibull <-
   function(n,
            shape = 1.5,
            scale = 100,
-           rho = 0.8,
+           rho = 1.25,
            theta) {
     Z  <- rbinom(n, 1, 0.5)
     T0 <- rweibull(n, shape = shape, scale = scale)
@@ -116,7 +116,7 @@ gen_loglogistic <-
   function(n,
            shape = 4,
            scale = 100,
-           rho = 0.8,
+           rho = 1.25,
            theta) {
     Z  <- rbinom(n, 1, 0.5)
     U  <- runif(n)

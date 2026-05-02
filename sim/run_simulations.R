@@ -5,7 +5,6 @@ library(furrr)
 
 set.seed(1)
 NSIM <- 2000
-NSIM <- 1
 N_CORES <- max(1, detectCores() - 1)
 plan(multisession, workers = N_CORES)
 
@@ -138,6 +137,8 @@ covers <- function(lo, hi, val) {
 }
 
 run_one <- function(dat, true_rho) {
+  if (sum(dat$event) == 0) return(NULL)
+  
   np   <- ci_multiplicative(dat)
   waft <- ci_weibull_aft(dat)
   
@@ -165,11 +166,13 @@ results <-
     target_cens <- scenarios$cens_rate[s]
     dgp <- dgp_list[[dgp_name]]
     
-    sims <- future_map_dfr(
+    sims <- future_map(
       seq_len(NSIM),
       function(i) run_one(dgp(n = n, rho = rho, theta = theta), rho),
       .options = furrr_options(seed = TRUE)   
-    )
+    ) |>
+      purrr::compact() |> 
+      do.call(what = rbind)
     
     data.frame(
       dgp          = dgp_name,

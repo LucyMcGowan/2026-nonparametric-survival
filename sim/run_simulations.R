@@ -23,7 +23,8 @@ ci_multiplicative <- function(data,
                               ngrid = 1001) {
   grid_rho <- exp(seq(log_lower, log_upper, length.out = ngrid))
   pval <- vapply(grid_rho, function(rho) {
-    d <- data; d$Y[d$Z == 0] <- d$Y[d$Z == 0] * rho
+    d <- data
+    d$Y[d$Z == 0] <- d$Y[d$Z == 0] * rho
     survdiff(Surv(Y, event) ~ Z, data = d, rho = 0)$pvalue
   }, numeric(1))
   data.frame(

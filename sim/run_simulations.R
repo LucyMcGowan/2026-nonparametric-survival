@@ -5,6 +5,7 @@ library(furrr)
 
 set.seed(1)
 NSIM <- 2000
+NSIM <- 1
 N_CORES <- max(1, detectCores() - 1)
 plan(multisession, workers = N_CORES)
 
@@ -22,16 +23,9 @@ ci_multiplicative <- function(data,
                               ngrid = 1001) {
   grid_rho <- exp(seq(log_lower, log_upper, length.out = ngrid))
   pval <- vapply(grid_rho, function(rho) {
-    d <- data
-    d$Y[d$Z == 0] <- d$Y[d$Z == 0] * rho
+    d <- data; d$Y[d$Z == 0] <- d$Y[d$Z == 0] * rho
     survdiff(Surv(Y, event) ~ Z, data = d, rho = 0)$pvalue
   }, numeric(1))
-  if (all(pval <= alpha))
-    return(data.frame(
-      est = NA_real_,
-      lower = NA_real_,
-      upper = NA_real_
-    ))
   data.frame(
     est   = grid_rho[which.max(pval)],
     lower = min(grid_rho[pval > alpha]),

@@ -1,6 +1,6 @@
 
 
-# Nonparametric Alternative for Summarizing Survival Treatment Effects
+# Randomization inference for treatment effects on survival outcomes
 
 **D’Agostino McGowan, Rigdon, Li, and Small**
 

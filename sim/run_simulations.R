@@ -4,7 +4,7 @@ library(flexsurv)
 library(furrr)
 
 set.seed(1)
-NSIM <- 2000
+NSIM <- 5000
 N_CORES <- max(1, detectCores() - 1)
 plan(multisession, workers = N_CORES)
 

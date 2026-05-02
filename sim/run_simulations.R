@@ -1,5 +1,6 @@
 library(survival)
 library(parallel)
+library(flexsurv)
 
 scenarios <- expand.grid(
   dgp = c("weibull", "loglogistic"),
@@ -37,7 +38,8 @@ ci_multiplicative <- function(data,
 ci_weibull_aft <- function(data, alpha = 0.05) {
   fit <-
     tryCatch(
-      survreg(Surv(Y, event) ~ Z, data = data, dist = "weibull"),
+      survreg(Surv(Y, event) ~ Z, data = data, dist = "weibull",
+              control = survreg.control(maxiter = 100)),
       error = function(e)
         NULL
     )
@@ -50,9 +52,11 @@ ci_weibull_aft <- function(data, alpha = 0.05) {
   b  <- coef(fit)["Z"]
   se <- sqrt(vcov(fit)["Z", "Z"])
   z  <- qnorm(1 - alpha / 2)
-  data.frame(est = exp(-b),
-             lower = exp(-(b + z * se)),
-             upper = exp(-(b - z * se)))
+  data.frame(
+    est   = exp(b),
+    lower = exp(b - z * se),
+    upper = exp(b + z * se)
+  )
 }
 
 
@@ -63,21 +67,19 @@ find_theta <- function(shape, scale, rho, cens_rate) {
   }
   uniroot(function(theta) {
     0.5 * p_event(scale, theta) +
-      0.5 * p_event(scale / rho, theta) - cens_rate
+      0.5 * p_event(scale * rho, theta) - cens_rate
   }, interval = c(1e-6, 1e6 * scale))$root
 }
 
-find_theta_loglogistic <-
-  function(shape, scale, rho, cens_rate, n = 1e6) {
-    U  <- runif(n)
-    T0 <- scale * (U / (1 - U)) ^ (1 / shape)
-    Tt <- ifelse(rbinom(n, 1, 0.5) == 1, T0 / rho, T0)
-    uniroot(function(theta)
-      mean(Tt > runif(n, 0, theta)) - cens_rate,
-      interval = c(1e-6, 1e6 * scale))$root
-  }
-
-param_grid <- unique(scenarios[, c("dgp", "rho", "cens_rate")])
+find_theta_loglogistic <- function(shape, scale, rho, cens_rate, n = 1e6) {
+  T0 <- rllogis(n, shape = shape, scale = scale)
+  Z  <- rbinom(n, 1, 0.5)
+  Tt <- ifelse(Z == 1, T0 * rho, T0)
+  U  <- runif(n)
+  uniroot(function(theta)
+    mean(Tt > U * theta) - cens_rate,
+    interval = c(1e-6, 1e6 * scale))$root
+}
 
 scenarios$theta <- mapply(function(dgp, rho, cens_rate) {
   if (dgp == "weibull") {
@@ -105,7 +107,7 @@ gen_weibull <-
            theta) {
     Z  <- rbinom(n, 1, 0.5)
     T0 <- rweibull(n, shape = shape, scale = scale)
-    Tt <- ifelse(Z == 1, T0 / rho, T0)
+    Tt <- ifelse(Z == 1, T0 * rho, T0)
     C  <- runif(n, 0, theta)
     data.frame(Y = pmin(Tt, C),
                Z = Z,
@@ -119,9 +121,8 @@ gen_loglogistic <-
            rho = 1.25,
            theta) {
     Z  <- rbinom(n, 1, 0.5)
-    U  <- runif(n)
-    T0 <- scale * (U / (1 - U)) ^ (1 / shape)
-    Tt <- ifelse(Z == 1, T0 / rho, T0)
+    T0 <- rllogis(n, shape = shape, scale = scale)
+    Tt <- ifelse(Z == 1, T0 * rho, T0)
     C  <- runif(n, 0, theta)
     data.frame(Y = pmin(Tt, C),
                Z = Z,

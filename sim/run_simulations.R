@@ -1,6 +1,12 @@
 library(survival)
 library(parallel)
 library(flexsurv)
+library(furrr)
+
+set.seed(1)
+NSIM <- 2000
+N_CORES <- max(1, detectCores() - 1)
+plan(multisession, workers = N_CORES)
 
 scenarios <- expand.grid(
   dgp = c("weibull", "loglogistic"),
@@ -8,8 +14,6 @@ scenarios <- expand.grid(
   cens_rate = c(0.2, 0.5, 0.8),
   rho = c(1.0, 1.25)
 )
-
-N_CORES <- max(1L, detectCores() - 1L)
 
 ci_multiplicative <- function(data,
                               log_lower = -3,
@@ -38,8 +42,12 @@ ci_multiplicative <- function(data,
 ci_weibull_aft <- function(data, alpha = 0.05) {
   fit <-
     tryCatch(
-      survreg(Surv(Y, event) ~ Z, data = data, dist = "weibull",
-              control = survreg.control(maxiter = 100)),
+      survreg(
+        Surv(Y, event) ~ Z,
+        data = data,
+        dist = "weibull",
+        control = survreg.control(maxiter = 100)
+      ),
       error = function(e)
         NULL
     )
@@ -71,15 +79,16 @@ find_theta <- function(shape, scale, rho, cens_rate) {
   }, interval = c(1e-6, 1e6 * scale))$root
 }
 
-find_theta_loglogistic <- function(shape, scale, rho, cens_rate, n = 1e6) {
-  T0 <- rllogis(n, shape = shape, scale = scale)
-  Z  <- rbinom(n, 1, 0.5)
-  Tt <- ifelse(Z == 1, T0 * rho, T0)
-  U  <- runif(n)
-  uniroot(function(theta)
-    mean(Tt > U * theta) - cens_rate,
-    interval = c(1e-6, 1e6 * scale))$root
-}
+find_theta_loglogistic <-
+  function(shape, scale, rho, cens_rate, n = 1e6) {
+    T0 <- rllogis(n, shape = shape, scale = scale)
+    Z  <- rbinom(n, 1, 0.5)
+    Tt <- ifelse(Z == 1, T0 * rho, T0)
+    U  <- runif(n)
+    uniroot(function(theta)
+      mean(Tt > U * theta) - cens_rate,
+      interval = c(1e-6, 1e6 * scale))$root
+  }
 
 scenarios$theta <- mapply(function(dgp, rho, cens_rate) {
   if (dgp == "weibull") {
@@ -129,12 +138,14 @@ gen_loglogistic <-
                event = as.integer(Tt <= C))
   }
 
+covers <- function(lo, hi, val) {
+  ! is.na(lo) && lo <= val && val <= hi
+}
+
 run_one <- function(dat, true_rho) {
   np   <- ci_multiplicative(dat)
   waft <- ci_weibull_aft(dat)
-  covers <-
-    function(lo, hi, val)
-      ! is.na(lo) && lo <= val && val <= hi
+  
   data.frame(
     cens_rate    = 1 - mean(dat$event),
     np_covered   = covers(np$lower, np$upper, true_rho),
@@ -146,11 +157,9 @@ run_one <- function(dat, true_rho) {
   )
 }
 
-dgp_list <-
-  list(weibull = gen_weibull, loglogistic = gen_loglogistic)
-
-set.seed(1)
-NSIM <- 1000
+dgp_list <- list(
+  weibull = gen_weibull, 
+  loglogistic = gen_loglogistic)
 
 results <-
   do.call(rbind, lapply(seq_len(nrow(scenarios)), function(s) {
@@ -161,10 +170,11 @@ results <-
     target_cens <- scenarios$cens_rate[s]
     dgp <- dgp_list[[dgp_name]]
     
-    
-    sims <- do.call(rbind, mclapply(seq_len(NSIM), function(i) {
-      run_one(dgp(n = n, rho = rho, theta = theta), rho)
-    }, mc.cores = N_CORES))
+    sims <- future_map_dfr(
+      seq_len(NSIM),
+      function(i) run_one(dgp(n = n, rho = rho, theta = theta), rho),
+      .options = furrr_options(seed = TRUE)   
+    )
     
     data.frame(
       dgp          = dgp_name,
@@ -181,4 +191,5 @@ results <-
     )
   }))
 
+plan(sequential)
 save(results, file = "sim/results/results.rda")

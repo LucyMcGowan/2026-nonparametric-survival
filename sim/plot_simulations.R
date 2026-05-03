@@ -52,7 +52,8 @@ p1 <- long |>
   geom_point(size = 2.4, fill = "white", stroke = 1.2) +
   facet_grid(dgp ~ n, labeller = facet_labels) +
   scale_y_continuous(labels = scales::percent_format(accuracy = 1),
-                     breaks = c(0.05, 0.1, 0.15)) +
+                     breaks = c(0.05, 0.1, 0.15, 0.2),
+                     limits = c(0.01, .20)) +
   labs(x = "Censoring rate", y = "Type I error",
        color = NULL, linetype = NULL, shape = NULL) +
   pub_theme

@@ -65,14 +65,29 @@ additive shift values $c$ to produce a confidence interval for the
 number of days by which treatment delays the event.
 
 ``` r
-ci_additive <- function(data, lower, upper, alpha = 0.05, ngrid = 1001) {
+ci_additive <- function(data, time, treatment, event, 
+                        lower, upper, alpha = 0.05, ngrid = 1001) {
   grid_c <- seq(lower, upper, length.out = ngrid)
+  
+  levels   <- unique(data[[treatment]])
+  trt_label  <- levels[1]
+  ctrl_label <- levels[2]
+  
   pval <- vapply(grid_c, function(c) {
-    d <- data
-    d$Y[d$Z == 0] <- d$Y[d$Z == 0] + c
-    survdiff(Surv(Y, event) ~ Z, data = d, rho = 0)$pvalue
+    t <- data[[time]]
+    z <- data[[treatment]]
+    e <- data[[event]]
+    
+    # If c <= 0, flip treatment labels
+    if (c <= 0) {
+      z <- ifelse(z == trt_label, ctrl_label, trt_label)
+      c <- -c
+    } 
+    
+    t[z == 0] <- t[z == 0] + c
+    survdiff(Surv(t, e) ~ z, rho = 0)$pvalue
   }, numeric(1))
-
+  
   data.frame(
     est   = grid_c[which.max(pval)],
     lower = min(grid_c[pval > alpha]),
@@ -80,7 +95,7 @@ ci_additive <- function(data, lower, upper, alpha = 0.05, ngrid = 1001) {
   )
 }
 
-ci_additive(dat, -80, 80)
+ci_additive(dat, time = "Y", "Z", "event", -80, 80)
 ```
 
         est lower upper
@@ -97,12 +112,17 @@ multiplicative factors (searched on the log scale) to produce a
 confidence interval for the time-acceleration factor.
 
 ``` r
-ci_multiplicative <- function(data, log_lower, log_upper, alpha = 0.05, ngrid = 1001) {
+ci_multiplicative <- function(data, time, treatment, event,
+                              log_lower, log_upper, alpha = 0.05, ngrid = 1001) {
   grid_rho <- exp(seq(log_lower, log_upper, length.out = ngrid))
+  
   pval <- vapply(grid_rho, function(rho) {
-    d <- data
-    d$Y[d$Z == 0] <- d$Y[d$Z == 0] * rho
-    survdiff(Surv(Y, event) ~ Z, data = d, rho = 0)$pvalue
+    t <- data[[time]]
+    z <- data[[treatment]]
+    e <- data[[event]]
+    
+    t[z == 0] <- t[z == 0] * rho
+    survdiff(Surv(t, e) ~ z, rho = 0)$pvalue
   }, numeric(1))
 
   data.frame(
@@ -112,7 +132,7 @@ ci_multiplicative <- function(data, log_lower, log_upper, alpha = 0.05, ngrid = 
   )
 }
 
-ci_multiplicative(dat, -3, 3)
+ci_multiplicative(dat, "Y", "Z", "event", -3, 3)
 ```
 
            est    lower   upper
@@ -129,11 +149,6 @@ stretched by $\hat\rho= 1.55$ (multiplicative).
 
 ``` r
 library(ggsurvfit)
-```
-
-    Loading required package: ggplot2
-
-``` r
 library(ggplot2)
 
 km_fit     <- survfit2(Surv(Y, event) ~ Z, data = dat)
@@ -155,12 +170,6 @@ km_fit |>
   ) +
   scale_ggsurvfit(x_scales = list(limits = c(0, 189)))
 ```
-
-    Warning: Removed 32 rows containing missing values or values outside the scale range
-    (`geom_step()`).
-
-    Warning: Removed 26 rows containing missing values or values outside the scale range
-    (`geom_step()`).
 
 ![Kaplan–Meier survival curves for the rhDNase trial. Solid lines show
 the control (blue) and rhDNase (orange) arms. The dashed line is the

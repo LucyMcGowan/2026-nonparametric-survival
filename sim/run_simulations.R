@@ -2,10 +2,11 @@ library(survival)
 library(parallel)
 library(flexsurv)
 library(furrr)
+library(aftgee)
 
 set.seed(1)
-NSIM <- 5000
-N_CORES <- max(1, detectCores() - 1)
+NSIM <- 3000
+N_CORES <- max(1, availableCores() - 1)
 plan(multisession, workers = N_CORES)
 
 scenarios <- expand.grid(
@@ -33,6 +34,31 @@ ci_multiplicative <- function(data,
   )
 }
 
+ci_semi_aft <- function(data, alpha = 0.05) {
+  fit <- 
+    tryCatch(
+      aftgee(
+        Surv(Y, event) ~ Z,
+        data = data
+      ),
+      error = function(e)
+        NULL
+    )
+  if (is.null(fit))
+    return(data.frame(
+      est = NA_real_,
+      lower = NA_real_,
+      upper = NA_real_
+    ))
+  b  <- coef(fit)["Z"]
+  se <- sqrt(vcov(fit)[2, 2])
+  z  <- qnorm(1 - alpha / 2)
+  data.frame(
+    est   = exp(b),
+    lower = exp(b - z * se),
+    upper = exp(b + z * se)
+  )
+}
 ci_weibull_aft <- function(data, alpha = 0.05) {
   fit <-
     tryCatch(
@@ -141,6 +167,7 @@ run_one <- function(dat, true_rho) {
   
   np   <- ci_multiplicative(dat)
   waft <- ci_weibull_aft(dat)
+  semi <- ci_semi_aft(dat)
   
   data.frame(
     cens_rate    = 1 - mean(dat$event),
@@ -149,7 +176,10 @@ run_one <- function(dat, true_rho) {
     np_est       = np$est,
     waft_covered = covers(waft$lower, waft$upper, true_rho),
     waft_width   = waft$upper - waft$lower,
-    waft_est     = waft$est
+    waft_est     = waft$est,
+    semi_covered = covers(semi$lower, semi$upper, true_rho),
+    semi_width   = semi$upper - semi$lower,
+    semi_est     = semi$est
   )
 }
 
@@ -166,28 +196,34 @@ results <-
     target_cens <- scenarios$cens_rate[s]
     dgp <- dgp_list[[dgp_name]]
     
-    sims <- future_map(
+    out <- future_map(
       seq_len(NSIM),
       function(i) run_one(dgp(n = n, rho = rho, theta = theta), rho),
       .options = furrr_options(seed = TRUE)   
-    ) |>
-      purrr::compact() |> 
-      do.call(what = rbind)
+    ) 
+    
+    out <- Filter(Negate(is.null), out)
+    sims <- do.call(rbind, out)
+    cat("Finished iteration", s, "\n")
     
     data.frame(
       dgp          = dgp_name,
       n            = n,
       rho          = rho,
       target_cens  = target_cens,
+      n_sims       = nrow(sims),
       cens_rate    = round(mean(sims$cens_rate,    na.rm = TRUE), 3),
       np_coverage  = round(mean(sims$np_covered,   na.rm = TRUE), 3),
       np_width     = round(median(sims$np_width,   na.rm = TRUE), 3),
       np_est       = round(median(sims$np_est,     na.rm = TRUE), 3),
       aft_coverage = round(mean(sims$waft_covered, na.rm = TRUE), 3),
       aft_width    = round(median(sims$waft_width, na.rm = TRUE), 3),
-      aft_est      = round(median(sims$waft_est,   na.rm = TRUE), 3)
+      aft_est      = round(median(sims$waft_est,   na.rm = TRUE), 3),
+      semi_coverage = round(mean(sims$semi_covered, na.rm = TRUE), 3),
+      semi_width    = round(median(sims$semi_width, na.rm = TRUE), 3),
+      semi_est      = round(median(sims$semi_est,   na.rm = TRUE), 3)
     )
   }))
 
-plan(sequential)
+plan(sequential) 
 save(results, file = "sim/results/results.rda")

@@ -3,7 +3,7 @@ load("sim/results/results.rda")
 
 long <- results |>
   pivot_longer(
-    cols = c(np_coverage, aft_coverage, np_width, aft_width),
+    cols = c(np_coverage, aft_coverage, np_width, aft_width,),
     names_to  = c("method", "metric"),
     names_sep = "_",
     values_to = "value"
